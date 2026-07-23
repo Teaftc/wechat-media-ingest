@@ -28,22 +28,49 @@ Conclusion:
 The release candidate was checked with Python 3.12.13 on Windows:
 
 ```text
-pytest:                 13 passed
+pytest:                 26 passed
 compileall src tests:   passed
 ruff check src tests:   passed
-doctor:                 ok=true
+doctor:                 ok=true, version=0.2.0
+Manifest Schema:         bundled in wheel and validated
+Codex Skill:             quick_validate passed
+Offline import smoke:    complete; verify ok=true; schema_valid=true
+Wheel install smoke:     version=0.2.0; doctor ok=true
 Playwright Chromium:    available
 FFmpeg / ffprobe:       not on PATH (optional)
 ```
 
-The exact commands are:
+The exact core commands are:
 
 ```powershell
 python -m pytest -q
 python -m compileall -q src tests
 ruff check src tests
 wechat-media-ingest doctor
+python -m build --outdir dist
 ```
+
+The built `0.2.0` wheel was installed into a fresh temporary virtual environment.
+The installed CLI reported version `0.2.0`, `doctor` returned `ok=true`, and the wheel
+contained `schema.py` plus `schemas/manifest-v1.schema.json`.
+
+The repository Skill was validated with the Codex `skill-creator` `quick_validate.py`
+helper under UTF-8 mode.
+
+## Authorized local HTML import
+
+A synthetic text-only WeChat fixture was passed through the real CLI without monkeypatching:
+
+```powershell
+wechat-media-ingest import-html tests\fixtures\article_text_only.html `
+  --source-url "https://mp.weixin.qq.com/s?__biz=..." `
+  --output .local-output\offline-smoke-<timestamp>
+wechat-media-ingest verify <generated-job-directory>
+```
+
+The job completed with two complete assets (`original.html` and `article.md`). Verification
+returned `ok=true`, `schema_valid=true`, two checked files, and no failures. This test made no
+article-page network request.
 
 ## Authorized local-material replay
 

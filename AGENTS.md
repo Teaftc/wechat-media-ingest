@@ -29,4 +29,5 @@ python -m pytest
 python -m compileall -q src tests
 python -m ruff check src tests
 wechat-media-ingest doctor
+python -m build --outdir dist
 ```

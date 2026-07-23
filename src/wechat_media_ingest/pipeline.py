@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from .download import download_file, existing_file_matches, image_extension, probe_video
 from .errors import ErrorCode, IngestError
-from .fetch import fetch_browser, fetch_http
+from .fetch import FetchResult, fetch_browser, fetch_http
+from .fetch.http import classify_page
 from .manifest import atomic_write_json, file_asset, load_json, new_manifest, sha256_file, update_summary, utc_now
 from .normalize import ArticleIdentity, identify_article
 from .parse import choose_transcode, parse_article
@@ -187,11 +189,11 @@ def _failure_manifest(
     return manifest
 
 
-def ingest_url(
+def _ingest_source(
     url: str,
     output_root: Path,
     *,
-    fetcher: str = "auto",
+    result_factory: Callable[[], FetchResult],
     quality: str = "highest",
     force_new_snapshot: bool = False,
 ) -> dict:
@@ -208,7 +210,7 @@ def ingest_url(
         raise IngestError(ErrorCode.INTEGRITY, "existing complete snapshot failed verification")
 
     try:
-        result = _fetch(url, fetcher)
+        result = result_factory()
     except IngestError as exc:
         return _failure_manifest(output_root, preliminary, url, exc, force_new_snapshot)
 
@@ -423,3 +425,49 @@ def ingest_url(
     _write_state(job_dir, identity, snapshot_id)
     _log(snapshot, "job_finished", status=manifest["job"]["status"], failures=failures)
     return manifest
+
+
+def ingest_url(
+    url: str,
+    output_root: Path,
+    *,
+    fetcher: str = "auto",
+    quality: str = "highest",
+    force_new_snapshot: bool = False,
+) -> dict:
+    return _ingest_source(
+        url,
+        output_root,
+        result_factory=lambda: _fetch(url, fetcher),
+        quality=quality,
+        force_new_snapshot=force_new_snapshot,
+    )
+
+
+def import_html(
+    html_path: Path,
+    source_url: str,
+    output_root: Path,
+    *,
+    quality: str = "highest",
+    force_new_snapshot: bool = False,
+) -> dict:
+    path = html_path.expanduser().resolve()
+
+    def load_local_html() -> FetchResult:
+        if not path.is_file():
+            raise IngestError(ErrorCode.UNSUPPORTED, f"HTML file not found: {path}")
+        try:
+            html = path.read_text(encoding="utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise IngestError(ErrorCode.PARSE_ERROR, "HTML file must be UTF-8 or UTF-8-SIG") from exc
+        classify_page(html, source_url)
+        return FetchResult(html=html, final_url=source_url, method="local_html")
+
+    return _ingest_source(
+        source_url,
+        output_root,
+        result_factory=load_local_html,
+        quality=quality,
+        force_new_snapshot=force_new_snapshot,
+    )

@@ -1,7 +1,8 @@
 # Manifest contract (`schema_version: 1.0`)
 
 Each snapshot contains `manifest.json`. Downstream consumers should depend on
-this file and local asset paths, not on internal Python modules.
+this file and local asset paths, not on internal Python modules. The canonical bundled
+JSON Schema is `src/wechat_media_ingest/schemas/manifest-v1.schema.json`.
 
 ## Top-level fields
 
@@ -22,7 +23,9 @@ this file and local asset paths, not on internal Python modules.
 
 `manifest.json` and the append-only live log are not self-hashed. All archived
 content files (`original.html`, `article.md`, images, and videos) are represented
-as assets and verified by `wechat-media-ingest verify`.
+as assets. `wechat-media-ingest verify` first validates the Manifest against the
+bundled Schema, rejects duplicate asset IDs and inconsistent summary counts, then
+streams every complete file through size and SHA-256 verification.
 
 ## Identity
 
@@ -38,3 +41,13 @@ hash until their final article URL is fetched.
 - Existing files with mismatched size/hash are never silently overwritten.
 - `--force-new-snapshot` creates a new timestamped directory and preserves the
   previous snapshot.
+
+## Compatibility
+
+Schema `1.0` allows additional properties so compatible producers and consumers can add
+metadata without breaking validation. Removing or changing required fields requires a new
+Schema version. Downstream consumers should reject unsupported major Schema versions rather
+than guessing.
+
+`fetch_method: local_html` means the article page came from an authorized local export; it
+does not mean that referenced media assets were embedded or downloaded offline.

@@ -57,6 +57,8 @@ def _validate_article_url(url: str) -> None:
     parts = urlsplit(url)
     if parts.scheme not in {"http", "https"}:
         raise IngestError(ErrorCode.UNSUPPORTED, "URL must use http or https")
+    if parts.username or parts.password:
+        raise IngestError(ErrorCode.UNSUPPORTED, "credentials in URLs are not allowed")
     host = (parts.hostname or "").lower().rstrip(".")
     if host not in ARTICLE_HOSTS:
         raise IngestError(ErrorCode.UNSUPPORTED, f"unsupported article host: {host or '<missing>'}")

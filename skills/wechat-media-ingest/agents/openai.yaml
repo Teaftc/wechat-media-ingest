@@ -1,0 +1,4 @@
+interface:
+  display_name: "WeChat Media Ingest"
+  short_description: "Archive and verify authorized WeChat article media"
+  default_prompt: "Use $wechat-media-ingest to archive and verify this authorized WeChat article."

@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Teaftc/wechat-media-ingest/schemas/manifest-v1.schema.json",
+  "title": "wechat-media-ingest manifest v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "tool", "job", "article", "assets", "summary"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "tool": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"const": "wechat-media-ingest"},
+        "version": {"type": "string", "minLength": 1}
+      }
+    },
+    "job": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "job_id", "snapshot_id", "input_url", "final_url", "canonical_url",
+        "identity_method", "identity_fields", "fetch_method", "created_at",
+        "updated_at", "status", "error"
+      ],
+      "properties": {
+        "job_id": {"type": "string", "minLength": 1},
+        "snapshot_id": {"type": "string", "minLength": 1},
+        "input_url": {"type": "string", "minLength": 1},
+        "final_url": {"type": "string"},
+        "canonical_url": {"type": "string", "minLength": 1},
+        "identity_method": {"enum": ["wechat_identity", "url_hash"]},
+        "identity_fields": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        },
+        "fetch_method": {"type": "string"},
+        "created_at": {"type": "string", "minLength": 1},
+        "updated_at": {"type": "string", "minLength": 1},
+        "status": {"enum": ["running", "complete", "partial", "failed"]},
+        "error": {"$ref": "#/$defs/errorOrNull"}
+      }
+    },
+    "article": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["title", "account", "publish_time", "collected_at"],
+      "properties": {
+        "title": {"type": "string"},
+        "account": {"type": "string"},
+        "publish_time": {"type": "string"},
+        "collected_at": {"type": "string", "minLength": 1}
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/asset"}
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["complete", "skipped", "out_of_scope", "failed"],
+      "properties": {
+        "complete": {"type": "integer", "minimum": 0},
+        "skipped": {"type": "integer", "minimum": 0},
+        "out_of_scope": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0}
+      }
+    }
+  },
+  "$defs": {
+    "error": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "message": {"type": "string", "minLength": 1}
+      }
+    },
+    "errorOrNull": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/error"}]
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id", "type", "source_url", "local_path", "status", "bytes",
+        "sha256", "content_type", "error"
+      ],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "type": {"type": "string", "minLength": 1},
+        "source_url": {"type": "string"},
+        "local_path": {"type": "string"},
+        "status": {"enum": ["complete", "skipped", "out_of_scope", "failed"]},
+        "bytes": {"type": "integer", "minimum": 0},
+        "sha256": {"type": "string"},
+        "content_type": {"type": "string"},
+        "error": {"$ref": "#/$defs/errorOrNull"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "complete"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "local_path": {"type": "string", "minLength": 1},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "error": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "failed"}}, "required": ["status"]},
+          "then": {"properties": {"error": {"$ref": "#/$defs/error"}}}
+        }
+      ]
+    }
+  }
+}

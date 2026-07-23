@@ -1,3 +1,6 @@
+import pytest
+
+from wechat_media_ingest.errors import ErrorCode, IngestError
 from wechat_media_ingest.normalize import identify_article, safe_component
 
 
@@ -20,3 +23,9 @@ def test_url_hash_fallback_is_stable():
 def test_windows_reserved_component_is_safe():
     assert safe_component("CON") == "_CON"
     assert safe_component('bad:name?') == "bad_name_"
+
+
+def test_article_url_rejects_embedded_credentials():
+    with pytest.raises(IngestError) as caught:
+        identify_article("https://user:secret@mp.weixin.qq.com/s/example")
+    assert caught.value.code == ErrorCode.UNSUPPORTED

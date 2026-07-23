@@ -1,7 +1,7 @@
 # wechat-media-ingest
 
-Archive a **single public or authorized WeChat article URL** into an immutable,
-verifiable snapshot containing the original HTML, clean Markdown, local images,
+Archive a **single public or authorized WeChat article** from an explicit URL or
+local HTML export into an immutable, verifiable snapshot containing the original HTML, clean Markdown, local images,
 WeChat-native MP4 video, logs, and `manifest.json`.
 
 > 中文简介：这是一个微信公众号原始资料与证据入库 CLI。它只负责采集和校验，
@@ -17,16 +17,18 @@ or storing login cookies.
 
 ## Scope
 
-Supported in `0.1.0`:
+Supported in `0.2.0`:
 
-- one explicit `mp.weixin.qq.com` article URL;
+- one explicit `mp.weixin.qq.com` article URL or an authorized local HTML export;
 - guarded HTTP fetch with optional fresh Playwright browser fetch;
 - title, account, publish time, canonical URL, raw HTML, and Markdown;
 - local WeChat CDN images;
 - WeChat-native `wxv_...` MP4 transcodes;
 - streaming downloads, `.part` resume, SHA-256, optional ffprobe metadata;
 - idempotent reruns and explicit new snapshots;
-- `doctor`, `inspect`, `ingest`, and `verify` commands.
+- `doctor`, `inspect`, `ingest`, `import-html`, and `verify` commands;
+- bundled Manifest JSON Schema validation;
+- a thin Codex Skill under `skills/wechat-media-ingest`.
 
 Explicitly not supported:
 
@@ -87,13 +89,24 @@ Archive an article:
 wechat-media-ingest ingest "https://mp.weixin.qq.com/s?..." --output D:\WeChatArchive
 ```
 
+Import an authorized UTF-8/UTF-8-SIG HTML export when direct page fetching is blocked:
+
+```powershell
+wechat-media-ingest import-html .\article.html `
+  --source-url "https://mp.weixin.qq.com/s?..." `
+  --output D:\WeChatArchive
+```
+
+The local HTML replaces only the page fetch. Referenced allowlisted images and WeChat-native
+video assets are still downloaded normally. No browser cookies are read or stored.
+
 Force a new immutable snapshot when an article may have changed:
 
 ```powershell
 wechat-media-ingest ingest "https://mp.weixin.qq.com/s?..." --output D:\WeChatArchive --force-new-snapshot
 ```
 
-Verify a job or snapshot:
+Verify a job or snapshot, including Manifest Schema validation:
 
 ```powershell
 wechat-media-ingest verify D:\WeChatArchive\wechat_123_1_ab12cd34ef
@@ -134,6 +147,25 @@ changes inside the active snapshot, the CLI reports `INTEGRITY`; use
 
 See [docs/MANIFEST.md](docs/MANIFEST.md) for the contract and
 [docs/VALIDATION.md](docs/VALIDATION.md) for reproducible validation evidence.
+
+## Codex Skill
+
+The repository includes a thin Skill that invokes this CLI and preserves the same safety
+boundaries. It does not contain a second crawler implementation. To install it locally from
+a checkout on Windows:
+
+```powershell
+Copy-Item -Recurse -Force .\skills\wechat-media-ingest `
+  "$env:USERPROFILE\.codex\skills\wechat-media-ingest"
+```
+
+Then ask Codex to use `$wechat-media-ingest` with an explicit article URL or local HTML file.
+
+## Development and releases
+
+CI covers Windows and Linux on Python 3.10-3.13. See
+[docs/PUBLISHING.md](docs/PUBLISHING.md) for the tag-driven GitHub Release and PyPI setup,
+and [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## Exit codes
 

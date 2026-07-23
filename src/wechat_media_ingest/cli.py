@@ -10,7 +10,7 @@ from pathlib import Path
 from . import __version__
 from .errors import EXIT_ENVIRONMENT, EXIT_INTEGRITY, EXIT_JOB_FAILED, EXIT_OK, EXIT_PARTIAL, ErrorCode, IngestError
 from .fetch import browser_available
-from .pipeline import ingest_url, inspect_url
+from .pipeline import import_html, ingest_url, inspect_url
 from .verify import verify_path
 
 
@@ -18,9 +18,21 @@ def _print_json(data: dict, stream=None) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2), file=stream or sys.stdout)
 
 
+
+
+def _manifest_exit_code(manifest: dict) -> int:
+    status = manifest.get("job", {}).get("status")
+    if status == "complete":
+        return EXIT_OK
+    if status == "partial":
+        return EXIT_PARTIAL
+    error = manifest.get("job", {}).get("error") or {}
+    return EXIT_INTEGRITY if error.get("code") == ErrorCode.INTEGRITY else EXIT_JOB_FAILED
+
+
 def doctor() -> dict:
     packages = {}
-    for name in ("httpx", "beautifulsoup4", "lxml", "markdownify", "playwright"):
+    for name in ("httpx", "beautifulsoup4", "jsonschema", "lxml", "markdownify", "playwright"):
         try:
             packages[name] = {"available": True, "version": importlib.metadata.version(name)}
         except importlib.metadata.PackageNotFoundError:
@@ -28,7 +40,7 @@ def doctor() -> dict:
     browser_ok, browser_detail = browser_available()
     ffmpeg = shutil.which("ffmpeg")
     ffprobe = shutil.which("ffprobe")
-    required_ok = all(packages[name]["available"] for name in ("httpx", "beautifulsoup4", "lxml", "markdownify"))
+    required_ok = all(packages[name]["available"] for name in ("httpx", "beautifulsoup4", "jsonschema", "lxml", "markdownify"))
     return {
         "ok": required_ok,
         "tool_version": __version__,
@@ -64,7 +76,14 @@ def build_parser() -> argparse.ArgumentParser:
     ingest_parser.add_argument("--force-new-snapshot", action="store_true")
     ingest_parser.add_argument("--dry-run", action="store_true", help="inspect assets without writing files")
 
-    verify_parser = sub.add_parser("verify", help="verify manifest file sizes and SHA-256 hashes")
+    import_parser = sub.add_parser("import-html", help="archive an authorized local WeChat HTML export")
+    import_parser.add_argument("html_file", type=Path)
+    import_parser.add_argument("--source-url", required=True, help="original mp.weixin.qq.com article URL")
+    import_parser.add_argument("--output", type=Path, required=True)
+    import_parser.add_argument("--quality", choices=("highest", "balanced", "smallest"), default="highest")
+    import_parser.add_argument("--force-new-snapshot", action="store_true")
+
+    verify_parser = sub.add_parser("verify", help="verify manifest structure, file sizes, and SHA-256 hashes")
     verify_parser.add_argument("path", type=Path)
     return parser
 
@@ -93,13 +112,17 @@ def main(argv: list[str] | None = None) -> int:
                 force_new_snapshot=args.force_new_snapshot,
             )
             _print_json(manifest)
-            status = manifest.get("job", {}).get("status")
-            if status == "complete":
-                return EXIT_OK
-            if status == "partial":
-                return EXIT_PARTIAL
-            error_code = manifest.get("job", {}).get("error", {}).get("code") if manifest.get("job", {}).get("error") else None
-            return EXIT_INTEGRITY if error_code == ErrorCode.INTEGRITY else EXIT_JOB_FAILED
+            return _manifest_exit_code(manifest)
+        if args.command == "import-html":
+            manifest = import_html(
+                args.html_file,
+                args.source_url,
+                args.output,
+                quality=args.quality,
+                force_new_snapshot=args.force_new_snapshot,
+            )
+            _print_json(manifest)
+            return _manifest_exit_code(manifest)
         if args.command == "verify":
             report = verify_path(args.path)
             _print_json(report)

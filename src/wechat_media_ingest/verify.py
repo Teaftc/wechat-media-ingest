@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .manifest import load_json, sha256_file
+from .schema import validate_manifest
 
 
 def _snapshot_dir(path: Path) -> Path:
@@ -24,8 +25,47 @@ def verify_path(path: Path) -> dict:
     manifest_path = snapshot / "manifest.json"
     manifest = load_json(manifest_path)
     failures: list[dict] = []
+    schema_failures = (
+        validate_manifest(manifest)
+        if isinstance(manifest, dict)
+        else [{"path": "<root>", "message": "manifest must be an object"}]
+    )
+    failures.extend(
+        {"id": "<manifest>", "reason": "schema validation failed", **failure}
+        for failure in schema_failures
+    )
+    if not isinstance(manifest, dict):
+        return {
+            "ok": False,
+            "snapshot": str(snapshot),
+            "manifest": str(manifest_path),
+            "schema_version": "",
+            "schema_valid": False,
+            "checked_files": 0,
+            "failures": failures,
+        }
+
+    job_status = manifest.get("job", {}).get("status") if isinstance(manifest.get("job"), dict) else None
+    if job_status != "complete":
+        failures.append({"id": "<job>", "reason": f"job status is {job_status or 'missing'}, not complete"})
+
+    assets = manifest.get("assets", [])
+    if isinstance(assets, list):
+        asset_ids = [asset.get("id") for asset in assets if isinstance(asset, dict)]
+        duplicates = sorted({asset_id for asset_id in asset_ids if asset_id and asset_ids.count(asset_id) > 1})
+        for asset_id in duplicates:
+            failures.append({"id": asset_id, "reason": "duplicate asset id"})
+        expected_summary = {"complete": 0, "skipped": 0, "out_of_scope": 0, "failed": 0}
+        for asset in assets:
+            if isinstance(asset, dict) and asset.get("status") in expected_summary:
+                expected_summary[asset["status"]] += 1
+        if manifest.get("summary") != expected_summary:
+            failures.append({"id": "<manifest>", "reason": "summary does not match asset statuses"})
+
     checked = 0
-    for asset in manifest.get("assets", []):
+    for asset in assets if isinstance(assets, list) else []:
+        if not isinstance(asset, dict):
+            continue
         status = asset.get("status")
         if status == "failed":
             failures.append({"id": asset.get("id"), "reason": "asset status is failed"})
@@ -57,6 +97,8 @@ def verify_path(path: Path) -> dict:
         "ok": not failures,
         "snapshot": str(snapshot),
         "manifest": str(manifest_path),
+        "schema_version": manifest.get("schema_version", ""),
+        "schema_valid": not schema_failures,
         "checked_files": checked,
         "failures": failures,
     }
