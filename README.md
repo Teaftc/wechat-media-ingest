@@ -5,7 +5,6 @@ local HTML export into an immutable, verifiable snapshot containing the original
 WeChat-native MP4 video, logs, and `manifest.json`.
 
 > 中文简介：这是一个专门用于采集、归档和校验微信公众号文章及媒体资源的 Codex Skill。
-> 不负责转写、OCR、摘要、市场分析、发布或交易决策。
 
 ## Why
 
